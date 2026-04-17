@@ -271,67 +271,68 @@ a {
   justify-content: center;
 }
 
-/* NOSSA HISTÓRIA */
+/* NOSSA HISTÓRIA (REDIESIGN SPLIT) */
 .historia {
-  padding: 100px 20px;
-  background-color: var(--color-primary-dark);
-  color: var(--color-text-light);
+  background-color: #2D1A16; /* Deep traditional brown */
+  padding: 0;
+  overflow: hidden;
 }
 
-.historia-container {
-  max-width: 1200px;
-  margin: 0 auto;
+.historia-container.split-layout {
   display: flex;
-  align-items: stretch;
-  gap: 80px;
+  min-height: 600px;
+  max-width: 100%;
 }
 
 .historia-text {
   flex: 1;
+  padding: 80px 10%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #F4EFE6;
 }
 
 .historia-text h2 {
+  font-family: 'Cinzel Decorative', cursive;
   font-size: 2.5rem;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
+  color: #F4EFE6;
   text-transform: uppercase;
-  letter-spacing: 1px;
 }
 
 .historia-text p {
-  margin-bottom: 20px;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  margin-bottom: 30px;
   font-weight: 300;
-  font-size: 1rem;
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
-.historia-image {
+.historia-actions {
+  margin-top: 10px;
+}
+
+.historia-image-new {
   flex: 1;
-  background-image: url('https://images.unsplash.com/photo-1517409241517-567a57a41da1?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'); /* Brick wall placeholder */
+  background-image: url('/historia_banner.png');
   background-size: cover;
   background-position: center;
   min-height: 400px;
-  position: relative;
 }
 
-.decoration-circle {
-  position: absolute;
-  bottom: -40px;
-  right: -40px;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  border: 2px solid var(--color-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(55, 29, 16, 0.9);
-}
-
-.inner-circle {
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  border: 1px dashed var(--color-accent);
+@media (max-width: 900px) {
+  .historia-container.split-layout {
+    flex-direction: column;
+  }
+  .historia-text {
+    padding: 60px 20px;
+    order: 2;
+  }
+  .historia-image-new {
+    height: 350px;
+    order: 1;
+  }
 }
 
 /* TRADIÇÕES EM DESTAQUE */
