@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel Administrativo - Casa de Tradição</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Cinzel+Decorative:wght@400;700;900&display=swap" rel="stylesheet">
+  </head>
+  <body class="admin-page">
+    <div id="app">
+      <header class="admin-header">
+        <div class="admin-container">
+          <div class="admin-header-left">
+            <a href="/" class="back-link">← Voltar ao Site</a>
+            <h1>Portal Administrativo</h1>
+          </div>
+          <button id="btn-reset" class="btn-reset">Resetar para Padrão</button>
+        </div>
+      </header>
+
+      <main class="admin-main">
+        <div class="admin-tabs">
+          <button class="tab-btn active" data-tab="categories">Categorias</button>
+          <button class="tab-btn" data-tab="products">Produtos</button>
+        </div>
+
+        <!-- CATEGORIES TAB -->
+        <section id="tab-categories" class="admin-section active">
+          <div class="admin-card">
+            <h2>Adicionar/Editar Categoria</h2>
+            <form id="form-category" class="admin-form">
+              <input type="hidden" id="cat-id">
+              <div class="form-group">
+                <label>Nome da Categoria</label>
+                <input type="text" id="cat-name" required placeholder="Ex: Grelhados">
+              </div>
+              <div class="form-group">
+                <label>URL da Imagem (Thumbnail)</label>
+                <input type="text" id="cat-thumb" required placeholder="Ex: /menu_steaks.png">
+              </div>
+              <button type="submit" class="btn-save">Salvar Categoria</button>
+            </form>
+          </div>
+
+          <div class="admin-card">
+            <h2>Lista de Categorias</h2>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Preview</th>
+                  <th>Nome</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="list-categories">
+                <!-- Dinâmico -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- PRODUCTS TAB -->
+        <section id="tab-products" class="admin-section">
+          <div class="admin-card">
+            <h2>Adicionar/Editar Produto</h2>
+            <form id="form-product" class="admin-form">
+              <input type="hidden" id="prod-id">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nome do Prato</label>
+                  <input type="text" id="prod-name" required placeholder="Ex: Picanha Premium">
+                </div>
+                <div class="form-group">
+                  <label>Categoria</label>
+                  <select id="prod-category" required>
+                    <!-- Dinâmico -->
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Preço (R$)</label>
+                  <input type="text" id="prod-price" required placeholder="Ex: 89.90">
+                </div>
+                <div class="form-group">
+                  <label>URL da Imagem</label>
+                  <input type="text" id="prod-image" required placeholder="Ex: /picanha.png">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Descrição Curta</label>
+                <input type="text" id="prod-desc" required placeholder="Ex: Corte nobre grelhado...">
+              </div>
+              <div class="form-group">
+                <label>Ingredientes (Exibidos no Modal)</label>
+                <textarea id="prod-ingredients" rows="3" required placeholder="Ex: 300g de carne, arroz..."></textarea>
+              </div>
+              <button type="submit" class="btn-save">Salvar Produto</button>
+            </form>
+          </div>
+
+          <div class="admin-card">
+            <h2>Lista de Produtos</h2>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Preview</th>
+                  <th>Nome</th>
+                  <th>Categoria</th>
+                  <th>Preço</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="list-products">
+                <!-- Dinâmico -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>
