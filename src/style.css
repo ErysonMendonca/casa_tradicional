@@ -402,7 +402,8 @@ a {
   position: relative;
 }
 
-.recompensas-text flex: 1 {
+.recompensas-text {
+  flex: 1;
 }
 
 .recompensas-text h2 {
