@@ -1,0 +1,711 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import Toast from '@/components/Toast';
+import type { Category, Product } from '@/lib/supabase/types';
+import { logoutCustom } from '@/app/actions/auth';
+
+type ActiveTab = 'categories' | 'products' | 'reservations';
+
+interface Reservation {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  date: string;
+  time: string;
+  guests: number;
+  notes: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  created_at: string;
+}
+
+interface ToastState { message: string; type: 'success' | 'error' | 'info' }
+
+// ─── helpers de fetch ──────────────────────────────────────────────────────
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, options);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+export default function AdminPage() {
+  const router = useRouter();
+  const [userEmail, setUserEmail] = useState('Admin'); // Placeholder para o e-mail, pode ser buscado do DB futuramente
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // Settings form
+  const [setTotalTables, setFormTotalTables] = useState('10');
+  const [setOpenTime, setFormOpenTime] = useState('10:00');
+  const [setCloseTime, setFormCloseTime] = useState('22:00');
+  const [setDuration, setFormDuration] = useState('90');
+  const [setWhatsapp, setFormWhatsapp] = useState('');
+  
+  // Simulator State
+  const [simDate, setSimDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>('categories');
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  // Category form
+  const [catId, setCatId] = useState('');
+  const [catName, setCatName] = useState('');
+  const [catThumb, setCatThumb] = useState('');
+
+  // Product form
+  const [prodId, setProdId] = useState('');
+  const [prodCategoryId, setProdCategoryId] = useState('');
+  const [prodName, setProdName] = useState('');
+  const [prodPrice, setProdPrice] = useState('');
+  const [prodImage, setProdImage] = useState('');
+  const [prodDesc, setProdDesc] = useState('');
+  const [prodIngredients, setProdIngredients] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const showToast = useCallback((message: string, type: ToastState['type'] = 'success') => {
+    setToast({ message, type });
+  }, []);
+
+  // ─── Carregar dados do Supabase ───────────────────────────────────────────
+  const loadData = useCallback(async () => {
+    setDataLoading(true);
+    try {
+      const [cats, prods, resvs, sets] = await Promise.all([
+        apiFetch<Category[]>('/api/categories'),
+        apiFetch<Product[]>('/api/products'),
+        apiFetch<Reservation[]>('/api/reservations'),
+        apiFetch<any>('/api/settings').catch(() => null),
+      ]);
+      setCategories(cats);
+      setProducts(prods);
+      setReservations(resvs);
+      if (sets) {
+        setSettings(sets);
+        setFormTotalTables(String(sets.total_tables));
+        setFormOpenTime(sets.open_time.substring(0, 5));
+        setFormCloseTime(sets.close_time.substring(0, 5));
+        setFormDuration(String(sets.reservation_duration_mins));
+        setFormWhatsapp(sets.whatsapp_number || '');
+      }
+      if (!prodCategoryId && cats.length > 0) setProdCategoryId(cats[0].id);
+    } catch {
+      showToast('Erro ao carregar dados.', 'error');
+    } finally {
+      setDataLoading(false);
+    }
+  }, [prodCategoryId, showToast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ─── Logout ────────────────────────────────────────────────────────────────
+  const handleLogout = async () => {
+    await logoutCustom();
+    router.replace('/admin/login');
+  };
+
+  // ─── CATEGORIAS ───────────────────────────────────────────────────────────
+  const resetCatForm = () => { setCatId(''); setCatName(''); setCatThumb(''); };
+
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (catId) {
+        await apiFetch(`/api/categories/${catId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: catName, thumbnail: catThumb }),
+        });
+        showToast('Categoria atualizada com sucesso!');
+      } else {
+        await apiFetch('/api/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: catName, thumbnail: catThumb }),
+        });
+        showToast('Categoria criada com sucesso!');
+      }
+      resetCatForm();
+      loadData();
+    } catch {
+      showToast('Erro ao salvar categoria.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditCategory = (cat: Category) => {
+    setCatId(cat.id);
+    setCatName(cat.name);
+    setCatThumb(cat.thumbnail);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta categoria?')) return;
+    try {
+      await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
+      showToast('Categoria excluída.', 'info');
+      loadData();
+    } catch {
+      showToast('Erro ao excluir categoria.', 'error');
+    }
+  };
+
+  // ─── PRODUTOS ─────────────────────────────────────────────────────────────
+  const resetProdForm = () => {
+    setProdId(''); setProdName(''); setProdPrice(''); setProdImage('');
+    setProdDesc(''); setProdIngredients('');
+    if (categories.length > 0) setProdCategoryId(categories[0].id);
+  };
+
+  const handleSaveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const payload = {
+      category_id: prodCategoryId,
+      name: prodName,
+      price: parseFloat(prodPrice),
+      image: prodImage,
+      description: prodDesc,
+      ingredients: prodIngredients,
+      active: true,
+    };
+    try {
+      if (prodId) {
+        await apiFetch(`/api/products/${prodId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        showToast('Produto atualizado com sucesso!');
+      } else {
+        await apiFetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        showToast('Produto criado com sucesso!');
+      }
+      resetProdForm();
+      loadData();
+    } catch {
+      showToast('Erro ao salvar produto.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditProduct = (prod: Product) => {
+    setProdId(prod.id);
+    setProdCategoryId(prod.category_id);
+    setProdName(prod.name);
+    setProdPrice(String(prod.price));
+    setProdImage(prod.image);
+    setProdDesc(prod.description);
+    setProdIngredients(prod.ingredients);
+    setActiveTab('products');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!confirm('Deseja realmente remover este prato do cardápio?')) return;
+    try {
+      await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+      showToast('Produto removido.', 'info');
+      loadData();
+    } catch {
+      showToast('Erro ao remover produto.', 'error');
+    }
+  };
+
+  // ─── RESERVAS & SETTINGS ────────────────────────────────────────────────
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await apiFetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          total_tables: setTotalTables,
+          open_time: setOpenTime + ':00',
+          close_time: setCloseTime + ':00',
+          reservation_duration_mins: setDuration,
+          whatsapp_number: setWhatsapp
+        }),
+      });
+      showToast('Configurações salvas!');
+      loadData();
+    } catch {
+      showToast('Erro ao salvar as configurações.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateReservationStatus = async (id: string, status: Reservation['status']) => {
+    try {
+      await apiFetch(`/api/reservations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      showToast(`Reserva ${status === 'confirmed' ? 'confirmada' : 'cancelada'} com sucesso!`);
+      loadData();
+    } catch {
+      showToast('Erro ao atualizar status da reserva.', 'error');
+    }
+  };
+
+  const handleDeleteReservation = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este registro de reserva?')) return;
+    try {
+      await apiFetch(`/api/reservations/${id}`, { method: 'DELETE' });
+      showToast('Reserva excluída do sistema.', 'info');
+      loadData();
+    } catch {
+      showToast('Erro ao excluir reserva.', 'error');
+    }
+  };
+
+  // Funções do Simulador
+  const calculateOccupancy = (dateTarget: string) => {
+    if (!settings) return [];
+    
+    // As reservas confirmadas ou pendentes do dia escolhido
+    const daysRes = reservations.filter(r => r.date === dateTarget && r.status !== 'cancelled');
+    
+    // Converter '10:00' para valor numérico inteiro (ex: minutos do dia)
+    const timeToMins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const formatTime = (mins: number) => { const h = Math.floor(mins/60); const m = mins%60; return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`; };
+    
+    const openMins = timeToMins(settings.open_time);
+    const closeMins = timeToMins(settings.close_time);
+    const totalTables = settings.total_tables;
+    const durMins = settings.reservation_duration_mins;
+    
+    const slots = [];
+    for (let m = openMins; m < closeMins; m += 30) {
+      // Para cada slot, quantas mesas estão ativamente sob reserva neste exato minuto m?
+      // Uma reserva "ocupa" a mesa do [res.time_mins] até [res.time_mins + durMins]
+      let occupied = 0;
+      daysRes.forEach(r => {
+        const rStart = timeToMins(r.time);
+        const rEnd = rStart + durMins;
+        if (m >= rStart && m < rEnd) {
+          occupied++;
+        }
+      });
+      slots.push({ time: formatTime(m), occupied, total: totalTables, free: totalTables - occupied });
+    }
+    return slots;
+  };
+
+  const simSlots = calculateOccupancy(simDate);
+
+  return (
+    <div className="admin-wrapper">
+      {/* HEADER */}
+      <header className="admin-header">
+        <div className="admin-container">
+          <div className="admin-header-left">
+            <Link href="/" className="back-link">← Voltar ao Site</Link>
+            <h1 className="admin-title">Portal Administrativo</h1>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span style={{ color: 'rgba(244,239,230,0.6)', fontSize: '0.8rem' }}>
+              {userEmail}
+            </span>
+            <button
+              className="btn-reset"
+              onClick={handleLogout}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Sair
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="admin-main">
+        {/* Stats bar */}
+        <div style={{ display: 'flex', gap: 16, marginBottom: 30 }}>
+          {[
+            { label: 'Categorias', value: categories.length, icon: '🗂️' },
+            { label: 'Pratos', value: products.length, icon: '🍽️' },
+            { label: 'Reservas Hoje', value: reservations.filter(r => r.date === new Date().toISOString().split('T')[0]).length, icon: '📅' },
+            { label: 'Reservas Pendentes', value: reservations.filter(r => r.status === 'pending').length, icon: '🔔' },
+          ].map(stat => (
+            <div key={stat.label} style={{
+              background: 'white',
+              padding: '20px 24px',
+              borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <span style={{ fontSize: '1.8rem' }}>{stat.icon}</span>
+              <div>
+                <div style={{ fontFamily: 'var(--font-headings)', fontSize: '1.6rem', fontWeight: 700, color: '#7E1C1C', lineHeight: 1 }}>
+                  {dataLoading ? '—' : stat.value}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#888', marginTop: 4, fontFamily: 'var(--font-body)' }}>
+                  {stat.label}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* TABS */}
+        <div className="admin-tabs">
+          <button className={`tab-btn${activeTab === 'categories' ? ' active' : ''}`} onClick={() => setActiveTab('categories')}>
+            Categorias
+          </button>
+          <button className={`tab-btn${activeTab === 'products' ? ' active' : ''}`} onClick={() => setActiveTab('products')}>
+            Produtos
+          </button>
+          <button className={`tab-btn${activeTab === 'reservations' ? ' active' : ''}`} onClick={() => setActiveTab('reservations')}>
+            Reservas {reservations.filter(r => r.status === 'pending').length > 0 && `(${reservations.filter(r => r.status === 'pending').length})`}
+          </button>
+        </div>
+
+        {/* Loading overlay */}
+        {dataLoading && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#888', fontFamily: 'var(--font-body)' }}>
+            <div style={{ width: 36, height: 36, border: '3px solid #ddd', borderTopColor: '#7E1C1C', borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto 16px' }} />
+            Carregando dados do banco...
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
+        {!dataLoading && (
+          <>
+            {/* ===== ABA CATEGORIAS ===== */}
+            <section className={`admin-section${activeTab === 'categories' ? ' active' : ''}`}>
+              <div className="admin-card">
+                <h2>{catId ? 'Editar Categoria' : 'Adicionar Categoria'}</h2>
+                <form className="admin-form" onSubmit={handleSaveCategory}>
+                  <div className="form-group">
+                    <label>Nome da Categoria</label>
+                    <input type="text" value={catName} onChange={e => setCatName(e.target.value)} required placeholder="Ex: Grelhados" />
+                  </div>
+                  <div className="form-group">
+                    <label>URL da Imagem (Thumbnail)</label>
+                    <input type="text" value={catThumb} onChange={e => setCatThumb(e.target.value)} required placeholder="Ex: /menu_steaks.png  ou  https://bucket.supabase.co/..." />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button type="submit" className="btn-save" disabled={saving} style={{ flex: 1 }}>
+                      {saving ? 'Salvando...' : catId ? 'Atualizar Categoria' : 'Salvar Categoria'}
+                    </button>
+                    {catId && (
+                      <button type="button" onClick={resetCatForm} style={{ padding: '15px 20px', border: '1px solid #ccc', background: 'white', cursor: 'pointer', borderRadius: 4, fontFamily: 'var(--font-body)', fontWeight: 700 }}>
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              <div className="admin-card">
+                <h2>Lista de Categorias ({categories.length})</h2>
+                {categories.length === 0 ? (
+                  <p style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', padding: '30px 0' }}>
+                    Nenhuma categoria encontrada. Execute a seed no Supabase.
+                  </p>
+                ) : (
+                  <table className="admin-table">
+                    <thead><tr><th>Preview</th><th>Nome</th><th>Pratos</th><th>Ações</th></tr></thead>
+                    <tbody>
+                      {categories.map(cat => (
+                        <tr key={cat.id}>
+                          <td>
+                            <Image src={cat.thumbnail} alt={cat.name} width={60} height={40} className="admin-preview"
+                              onError={(e) => {(e.target as HTMLImageElement).src = '/menu_steaks.png';}}
+                            />
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{cat.name}</td>
+                          <td style={{ color: '#7E1C1C', fontWeight: 700 }}>
+                            {products.filter(p => p.category_id === cat.id).length}
+                          </td>
+                          <td>
+                            <button className="btn-edit" onClick={() => handleEditCategory(cat)}>Editar</button>
+                            <button className="btn-delete" onClick={() => handleDeleteCategory(cat.id)}>Excluir</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </section>
+
+            {/* ===== ABA PRODUTOS ===== */}
+            <section className={`admin-section${activeTab === 'products' ? ' active' : ''}`}>
+              <div className="admin-card">
+                <h2>{prodId ? 'Editar Produto' : 'Adicionar Produto'}</h2>
+                <form className="admin-form" onSubmit={handleSaveProduct}>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Nome do Prato</label>
+                      <input type="text" value={prodName} onChange={e => setProdName(e.target.value)} required placeholder="Ex: Picanha Premium" />
+                    </div>
+                    <div className="form-group">
+                      <label>Categoria</label>
+                      <select value={prodCategoryId} onChange={e => setProdCategoryId(e.target.value)} required>
+                        {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Preço (R$)</label>
+                      <input type="number" step="0.01" min="0" value={prodPrice} onChange={e => setProdPrice(e.target.value)} required placeholder="Ex: 89.90" />
+                    </div>
+                    <div className="form-group">
+                      <label>URL da Imagem</label>
+                      <input type="text" value={prodImage} onChange={e => setProdImage(e.target.value)} required placeholder="Ex: /picanha.png" />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Descrição Curta</label>
+                    <input type="text" value={prodDesc} onChange={e => setProdDesc(e.target.value)} required placeholder="Ex: Corte nobre grelhado na brasa com sal grosso." />
+                  </div>
+                  <div className="form-group">
+                    <label>Ingredientes (exibidos no modal)</label>
+                    <textarea value={prodIngredients} onChange={e => setProdIngredients(e.target.value)} rows={3} required placeholder="Ex: Picanha (300g), arroz biro-biro, farofa de ovos e vinagrete." />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button type="submit" className="btn-save" disabled={saving} style={{ flex: 1 }}>
+                      {saving ? 'Salvando...' : prodId ? 'Atualizar Produto' : 'Salvar Produto'}
+                    </button>
+                    {prodId && (
+                      <button type="button" onClick={resetProdForm} style={{ padding: '15px 20px', border: '1px solid #ccc', background: 'white', cursor: 'pointer', borderRadius: 4, fontFamily: 'var(--font-body)', fontWeight: 700 }}>
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              <div className="admin-card">
+                <h2>Lista de Produtos ({products.length})</h2>
+                {products.length === 0 ? (
+                  <p style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', padding: '30px 0' }}>
+                    Nenhum produto encontrado. Execute a seed no Supabase.
+                  </p>
+                ) : (
+                  <table className="admin-table">
+                    <thead>
+                      <tr><th>Preview</th><th>Nome</th><th>Categoria</th><th>Preço</th><th>Status</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody>
+                      {products.map(prod => {
+                        const catName = categories.find(c => c.id === prod.category_id)?.name ?? 'N/A';
+                        return (
+                          <tr key={prod.id}>
+                            <td>
+                              <Image src={prod.image} alt={prod.name} width={60} height={40} className="admin-preview"
+                                onError={(e) => {(e.target as HTMLImageElement).src = '/picanha.png';}}
+                              />
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{prod.name}</td>
+                            <td style={{ color: '#555', fontSize: '0.85rem' }}>{catName}</td>
+                            <td style={{ fontWeight: 700, color: '#7E1C1C' }}>R$ {Number(prod.price).toFixed(2).replace('.', ',')}</td>
+                            <td>
+                              <span style={{
+                                display: 'inline-block', padding: '3px 10px', borderRadius: 12,
+                                fontSize: '0.72rem', fontWeight: 700,
+                                background: prod.active ? '#e8f5e9' : '#fce4e4',
+                                color: prod.active ? '#2D5A27' : '#7E1C1C',
+                              }}>
+                                {prod.active ? 'Ativo' : 'Inativo'}
+                              </span>
+                            </td>
+                            <td>
+                              <button className="btn-edit" onClick={() => handleEditProduct(prod)}>Editar</button>
+                              <button className="btn-delete" onClick={() => handleDeleteProduct(prod.id)}>Excluir</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </section>
+
+            {/* ===== ABA RESERVAS ===== */}
+            <section className={`admin-section${activeTab === 'reservations' ? ' active' : ''}`}>
+              {/* === CONFIGURAÇÕES E SIMULADOR === */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: 24, marginBottom: 24 }}>
+                <div className="admin-card">
+                  <h2>⚙️ Configurações</h2>
+                  <form className="admin-form" onSubmit={handleSaveSettings}>
+                    <div className="form-group">
+                      <label>Total de Mesas Físicas</label>
+                      <input type="number" min="1" value={setTotalTables} onChange={e => setFormTotalTables(e.target.value)} required />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Abre às</label>
+                        <input type="time" value={setOpenTime} onChange={e => setFormOpenTime(e.target.value)} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Fecha às</label>
+                        <input type="time" value={setCloseTime} onChange={e => setFormCloseTime(e.target.value)} required />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Duração da Reserva (Minutos)</label>
+                      <input type="number" step="15" min="15" value={setDuration} onChange={e => setFormDuration(e.target.value)} required placeholder="Ex: 90" />
+                      <span style={{ fontSize: '0.75rem', color: '#666', marginTop: 4, display: 'block' }}>Ex: 90 minutos (1h30). Cada reserva bloqueia 1 mesa durante este tempo exato.</span>
+                    </div>
+                    <div className="form-group">
+                      <label>WhatsApp para Notificação (URL)</label>
+                      <input type="text" value={setWhatsapp} onChange={e => setFormWhatsapp(e.target.value)} placeholder="Ex: 5511999999999" />
+                      <span style={{ fontSize: '0.75rem', color: '#666', marginTop: 4, display: 'block' }}>Apenas números. O cliente será redirecionado para enviar mensagem a este WhatsApp no site.</span>
+                    </div>
+                    <button type="submit" className="btn-save" disabled={saving}>
+                      {saving ? 'Aplicando...' : 'Salvar Regras'}
+                    </button>
+                  </form>
+                </div>
+                
+                <div className="admin-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2>📊 Simulador de Ocupação</h2>
+                    <input type="date" value={simDate} onChange={e => setSimDate(e.target.value)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ccc' }} />
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>Visão em Tempo Real do consumo e devolução de mesas pelo sistema com base na duração.</p>
+                  
+                  {settings ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 10 }}>
+                      {simSlots.map((slot, i) => {
+                        const ratio = slot.free / slot.total;
+                        let color = '#2D5A27'; // Livre (verde)
+                        if (ratio < 0.3) color = '#7E1C1C'; // Quase cheio (vermelho)
+                        else if (ratio < 0.7) color = '#bd8c31'; // Metade (amarelo)
+                        if (slot.free === 0) color = '#000'; // Esgotado
+                        
+                        return (
+                          <div key={i} style={{ padding: '10px 8px', borderRadius: 8, background: '#fcfcfc', border: `1px solid ${color}`, textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#333' }}>{slot.time}</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: color, margin: '4px 0' }}>{slot.free}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#888', textTransform: 'uppercase' }}>Vagas</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p style={{ color: '#888' }}>Configuração não carregada.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* LISTA DE RESERVAS */}
+              <div className="admin-card">
+                <h2>Gerenciamento de Reservas ({reservations.length})</h2>
+                {reservations.length === 0 ? (
+                  <p style={{ color: '#888', fontStyle: 'italic', textAlign: 'center', padding: '30px 0' }}>
+                    Nenhuma reserva encontrada até o momento.
+                  </p>
+                ) : (
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Data/Hora</th>
+                        <th>Cliente</th>
+                        <th>Convidados</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reservations
+                        .sort((a, b) => new Date(`${b.date}T${b.time}`).getTime() - new Date(`${a.date}T${a.time}`).getTime())
+                        .map(res => (
+                        <tr key={res.id}>
+                          <td>
+                            <div style={{ fontWeight: 700 }}>
+                              {new Date(res.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>{res.time}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{res.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: '#888' }}>{res.phone}</div>
+                          </td>
+                          <td>
+                            <div style={{ textAlign: 'center', width: '30px', fontWeight: 700, color: '#7E1C1C' }}>
+                              {res.guests}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`status-badge status-${res.status}`}>
+                              {res.status === 'pending' ? 'Pendente' : res.status === 'confirmed' ? 'Confirmada' : 'Cancelada'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {res.status === 'pending' && (
+                                <button
+                                  className="btn-edit"
+                                  style={{ background: '#2D5A27' }}
+                                  onClick={() => handleUpdateReservationStatus(res.id, 'confirmed')}
+                                >
+                                  Confirmar
+                                </button>
+                              )}
+                              {res.status !== 'cancelled' && (
+                                <button
+                                  className="btn-delete"
+                                  onClick={() => handleUpdateReservationStatus(res.id, 'cancelled')}
+                                >
+                                  Cancelar
+                                </button>
+                              )}
+                              <button
+                                className="btn-reset"
+                                style={{ color: '#888', border: '1px solid #ccc', padding: '4px 8px' }}
+                                onClick={() => handleDeleteReservation(res.id)}
+                                title="Excluir Registro"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+
+      {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+    </div>
+  );
+}
