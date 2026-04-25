@@ -8,6 +8,17 @@ import ProductModal from '@/components/ProductModal';
 import { DEFAULT_CATEGORIES, DEFAULT_PRODUCTS } from '@/lib/data';
 import type { Category, Product } from '@/lib/supabase/types';
 
+function validateImageSrc(src: string | undefined | null, fallback: string): string {
+  if (!src || typeof src !== 'string' || src.trim() === '') return fallback;
+  if (src.startsWith('/') || src.startsWith('data:')) return src;
+  try {
+    new URL(src);
+    return src;
+  } catch (e) {
+    return fallback;
+  }
+}
+
 export default function CardapioPage() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
@@ -152,7 +163,7 @@ export default function CardapioPage() {
                     >
                       <div className="cat-img-wrapper">
                         <Image
-                          src={cat.thumbnail}
+                          src={validateImageSrc(cat.thumbnail, '/menu_steaks.png')}
                           alt={cat.name}
                           width={300}
                           height={200}
@@ -177,7 +188,7 @@ export default function CardapioPage() {
                       >
                         <div className="cat-img-wrapper">
                           <Image
-                            src={prod.image}
+                            src={validateImageSrc(prod.image, '/picanha.png')}
                             alt={prod.name}
                             width={300}
                             height={200}
@@ -188,7 +199,7 @@ export default function CardapioPage() {
                         <div className="product-info-simple">
                           <h3 className="product-name">{prod.name}</h3>
                           <span className="product-price">
-                            R$ {Number(prod.price).toFixed(2).replace('.', ',')}
+                            € {Number(prod.price).toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                       </button>

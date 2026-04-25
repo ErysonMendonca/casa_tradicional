@@ -4,6 +4,17 @@ import { useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import type { Product } from '@/lib/supabase/types';
 
+function validateImageSrc(src: string | undefined | null, fallback: string): string {
+  if (!src || typeof src !== 'string' || src.trim() === '') return fallback;
+  if (src.startsWith('/') || src.startsWith('data:')) return src;
+  try {
+    new URL(src);
+    return src;
+  } catch (e) {
+    return fallback;
+  }
+}
+
 interface ProductModalProps {
   product: Product | null;
   onClose: () => void;
@@ -51,11 +62,12 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
           <div className="modal-content">
             <div className="modal-image">
               <Image
-                src={product.image}
+                src={validateImageSrc(product.image, '/picanha.png')}
                 alt={product.name}
                 width={500}
                 height={600}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => { (e.target as HTMLImageElement).src = '/picanha.png'; }}
               />
             </div>
             <div className="modal-info">
@@ -67,7 +79,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
               </div>
               <div className="modal-footer-action">
                 <span className="modal-item-price">
-                  R$ {Number(product.price).toFixed(2).replace('.', ',')}
+                  € {Number(product.price).toFixed(2).replace('.', ',')}
                 </span>
                 <button className="btn-request" onClick={handleRequest}>
                   SOLICITAR PEDIDO

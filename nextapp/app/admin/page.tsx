@@ -5,8 +5,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Toast from '@/components/Toast';
+import ConfirmModal from '@/components/ConfirmModal';
 import type { Category, Product } from '@/lib/supabase/types';
 import { logoutCustom } from '@/app/actions/auth';
+import { uploadFile } from '@/lib/supabase/storage';
 
 type ActiveTab = 'categories' | 'products' | 'reservations';
 
@@ -24,6 +26,26 @@ interface Reservation {
 }
 
 interface ToastState { message: string; type: 'success' | 'error' | 'info' }
+
+interface ConfirmState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  type: 'danger' | 'warning' | 'info';
+}
+
+// Helper para validar URLs de imagem e evitar o erro "Failed to construct 'URL': Invalid URL" do Next.js
+function validateImageSrc(src: string | undefined | null, fallback: string): string {
+  if (!src || typeof src !== 'string' || src.trim() === '') return fallback;
+  if (src.startsWith('/') || src.startsWith('data:')) return src;
+  try {
+    new URL(src);
+    return src;
+  } catch (e) {
+    return fallback;
+  }
+}
 
 // ─── helpers de fetch ──────────────────────────────────────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
@@ -47,17 +69,29 @@ export default function AdminPage() {
   const [setCloseTime, setFormCloseTime] = useState('22:00');
   const [setDuration, setFormDuration] = useState('90');
   const [setWhatsapp, setFormWhatsapp] = useState('');
-  
+
   // Simulator State
   const [simDate, setSimDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('categories');
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    type: 'danger'
+  });
+
+  const askConfirmation = (title: string, message: string, onConfirm: () => void, type: ConfirmState['type'] = 'danger') => {
+    setConfirmState({ isOpen: true, title, message, onConfirm, type });
+  };
 
   // Category form
   const [catId, setCatId] = useState('');
   const [catName, setCatName] = useState('');
   const [catThumb, setCatThumb] = useState('');
+  const [catFile, setCatFile] = useState<File | null>(null);
 
   // Product form
   const [prodId, setProdId] = useState('');
@@ -65,6 +99,7 @@ export default function AdminPage() {
   const [prodName, setProdName] = useState('');
   const [prodPrice, setProdPrice] = useState('');
   const [prodImage, setProdImage] = useState('');
+  const [prodFile, setProdFile] = useState<File | null>(null);
   const [prodDesc, setProdDesc] = useState('');
   const [prodIngredients, setProdIngredients] = useState('');
   const [saving, setSaving] = useState(false);
@@ -113,30 +148,36 @@ export default function AdminPage() {
   };
 
   // ─── CATEGORIAS ───────────────────────────────────────────────────────────
-  const resetCatForm = () => { setCatId(''); setCatName(''); setCatThumb(''); };
+  const resetCatForm = () => { setCatId(''); setCatName(''); setCatThumb(''); setCatFile(null); };
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
+      let currentThumb = catThumb;
+      if (catFile) {
+        currentThumb = await uploadFile(catFile, 'categories');
+      }
+
       if (catId) {
         await apiFetch(`/api/categories/${catId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: catName, thumbnail: catThumb }),
+          body: JSON.stringify({ name: catName, thumbnail: currentThumb }),
         });
         showToast('Categoria atualizada com sucesso!');
       } else {
         await apiFetch('/api/categories', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: catName, thumbnail: catThumb }),
+          body: JSON.stringify({ name: catName, thumbnail: currentThumb }),
         });
         showToast('Categoria criada com sucesso!');
       }
       resetCatForm();
       loadData();
-    } catch {
+    } catch (err) {
+      console.error(err);
       showToast('Erro ao salvar categoria.', 'error');
     } finally {
       setSaving(false);
@@ -151,36 +192,47 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta categoria?')) return;
-    try {
-      await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
-      showToast('Categoria excluída.', 'info');
-      loadData();
-    } catch {
-      showToast('Erro ao excluir categoria.', 'error');
-    }
+    askConfirmation(
+      'Excluir Categoria',
+      'Tem certeza que deseja excluir esta categoria? Isso pode afetar os produtos vinculados.',
+      async () => {
+        try {
+          await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
+          showToast('Categoria excluída.', 'info');
+          loadData();
+        } catch {
+          showToast('Erro ao excluir categoria.', 'error');
+        }
+      }
+    );
   };
 
   // ─── PRODUTOS ─────────────────────────────────────────────────────────────
   const resetProdForm = () => {
     setProdId(''); setProdName(''); setProdPrice(''); setProdImage('');
-    setProdDesc(''); setProdIngredients('');
+    setProdDesc(''); setProdIngredients(''); setProdFile(null);
     if (categories.length > 0) setProdCategoryId(categories[0].id);
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const payload = {
-      category_id: prodCategoryId,
-      name: prodName,
-      price: parseFloat(prodPrice),
-      image: prodImage,
-      description: prodDesc,
-      ingredients: prodIngredients,
-      active: true,
-    };
     try {
+      let currentImage = prodImage;
+      if (prodFile) {
+        currentImage = await uploadFile(prodFile, 'products');
+      }
+
+      const payload = {
+        category_id: prodCategoryId,
+        name: prodName,
+        price: parseFloat(prodPrice),
+        image: currentImage,
+        description: prodDesc,
+        ingredients: prodIngredients,
+        active: true,
+      };
+
       if (prodId) {
         await apiFetch(`/api/products/${prodId}`, {
           method: 'PUT',
@@ -198,7 +250,8 @@ export default function AdminPage() {
       }
       resetProdForm();
       loadData();
-    } catch {
+    } catch (err) {
+      console.error(err);
       showToast('Erro ao salvar produto.', 'error');
     } finally {
       setSaving(false);
@@ -218,14 +271,19 @@ export default function AdminPage() {
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (!confirm('Deseja realmente remover este prato do cardápio?')) return;
-    try {
-      await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
-      showToast('Produto removido.', 'info');
-      loadData();
-    } catch {
-      showToast('Erro ao remover produto.', 'error');
-    }
+    askConfirmation(
+      'Remover Prato',
+      'Deseja realmente remover este prato do cardápio?',
+      async () => {
+        try {
+          await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+          showToast('Produto removido.', 'info');
+          loadData();
+        } catch {
+          showToast('Erro ao remover produto.', 'error');
+        }
+      }
+    );
   };
 
   // ─── RESERVAS & SETTINGS ────────────────────────────────────────────────
@@ -254,46 +312,64 @@ export default function AdminPage() {
   };
 
   const handleUpdateReservationStatus = async (id: string, status: Reservation['status']) => {
-    try {
-      await apiFetch(`/api/reservations/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      showToast(`Reserva ${status === 'confirmed' ? 'confirmada' : 'cancelada'} com sucesso!`);
-      loadData();
-    } catch {
-      showToast('Erro ao atualizar status da reserva.', 'error');
+    const performUpdate = async () => {
+      try {
+        await apiFetch(`/api/reservations/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        showToast(`Reserva ${status === 'confirmed' ? 'confirmada' : 'cancelada'} com sucesso!`);
+        loadData();
+      } catch {
+        showToast('Erro ao atualizar status da reserva.', 'error');
+      }
+    };
+
+    if (status === 'cancelled') {
+      askConfirmation(
+        'Cancelar Reserva',
+        'Tem certeza que deseja cancelar esta reserva? O cliente poderá ser notificado.',
+        performUpdate,
+        'warning'
+      );
+    } else {
+      performUpdate();
     }
   };
 
   const handleDeleteReservation = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este registro de reserva?')) return;
-    try {
-      await apiFetch(`/api/reservations/${id}`, { method: 'DELETE' });
-      showToast('Reserva excluída do sistema.', 'info');
-      loadData();
-    } catch {
-      showToast('Erro ao excluir reserva.', 'error');
-    }
+    askConfirmation(
+      'Excluir Reserva',
+      'Tem certeza que deseja excluir este registro de reserva permanentemente?',
+      async () => {
+        try {
+          await apiFetch(`/api/reservations/${id}`, { method: 'DELETE' });
+          showToast('Reserva excluída do sistema.', 'info');
+          loadData();
+        } catch {
+          showToast('Erro ao excluir reserva.', 'error');
+        }
+      }
+    );
   };
 
   // Funções do Simulador
   const calculateOccupancy = (dateTarget: string) => {
     if (!settings) return [];
-    
+
     // As reservas confirmadas ou pendentes do dia escolhido
     const daysRes = reservations.filter(r => r.date === dateTarget && r.status !== 'cancelled');
-    
+
     // Converter '10:00' para valor numérico inteiro (ex: minutos do dia)
     const timeToMins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-    const formatTime = (mins: number) => { const h = Math.floor(mins/60); const m = mins%60; return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`; };
-    
+    const formatTime = (mins: number) => { const h = Math.floor(mins / 60); const m = mins % 60; return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`; };
+
     const openMins = timeToMins(settings.open_time);
     const closeMins = timeToMins(settings.close_time);
     const totalTables = settings.total_tables;
     const durMins = settings.reservation_duration_mins;
-    
+
     const slots = [];
     for (let m = openMins; m < closeMins; m += 30) {
       // Para cada slot, quantas mesas estão ativamente sob reserva neste exato minuto m?
@@ -407,9 +483,17 @@ export default function AdminPage() {
                     <label>Nome da Categoria</label>
                     <input type="text" value={catName} onChange={e => setCatName(e.target.value)} required placeholder="Ex: Grelhados" />
                   </div>
-                  <div className="form-group">
-                    <label>URL da Imagem (Thumbnail)</label>
-                    <input type="text" value={catThumb} onChange={e => setCatThumb(e.target.value)} required placeholder="Ex: /menu_steaks.png  ou  https://bucket.supabase.co/..." />
+                   <div className="form-group">
+                    <label>Imagem da Categoria (Upload)</label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={e => setCatFile(e.target.files?.[0] || null)} 
+                      required={!catId} 
+                      style={{ padding: '10px', border: '1px solid #ddd', borderRadius: 4, width: '100%' }}
+                    />
+                    {catThumb && !catFile && <p style={{ fontSize: '0.75rem', color: '#666', marginTop: 4 }}>Imagem atual: {catThumb}</p>}
+                    {catFile && <p style={{ fontSize: '0.75rem', color: '#2D5A27', marginTop: 4 }}>Nova imagem: {catFile.name}</p>}
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button type="submit" className="btn-save" disabled={saving} style={{ flex: 1 }}>
@@ -437,8 +521,8 @@ export default function AdminPage() {
                       {categories.map(cat => (
                         <tr key={cat.id}>
                           <td>
-                            <Image src={cat.thumbnail} alt={cat.name} width={60} height={40} className="admin-preview"
-                              onError={(e) => {(e.target as HTMLImageElement).src = '/menu_steaks.png';}}
+                            <Image src={validateImageSrc(cat.thumbnail, '/menu_steaks.png')} alt={cat.name} width={60} height={40} className="admin-preview"
+                              onError={(e) => { (e.target as HTMLImageElement).src = '/menu_steaks.png'; }}
                             />
                           </td>
                           <td style={{ fontWeight: 600 }}>{cat.name}</td>
@@ -476,12 +560,20 @@ export default function AdminPage() {
                   </div>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Preço (R$)</label>
-                      <input type="number" step="0.01" min="0" value={prodPrice} onChange={e => setProdPrice(e.target.value)} required placeholder="Ex: 89.90" />
+                      <label>Preço (€)</label>
+                      <input type="number" step="0.01" min="0" value={prodPrice} onChange={e => setProdPrice(e.target.value)} required placeholder="Ex: 15.50" />
                     </div>
-                    <div className="form-group">
-                      <label>URL da Imagem</label>
-                      <input type="text" value={prodImage} onChange={e => setProdImage(e.target.value)} required placeholder="Ex: /picanha.png" />
+                     <div className="form-group">
+                      <label>Imagem do Prato (Upload)</label>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={e => setProdFile(e.target.files?.[0] || null)} 
+                        required={!prodId} 
+                        style={{ padding: '10px', border: '1px solid #ddd', borderRadius: 4, width: '100%' }}
+                      />
+                      {prodImage && !prodFile && <p style={{ fontSize: '0.75rem', color: '#666', marginTop: 4 }}>Imagem atual: {prodImage}</p>}
+                      {prodFile && <p style={{ fontSize: '0.75rem', color: '#2D5A27', marginTop: 4 }}>Nova imagem: {prodFile.name}</p>}
                     </div>
                   </div>
                   <div className="form-group">
@@ -522,13 +614,13 @@ export default function AdminPage() {
                         return (
                           <tr key={prod.id}>
                             <td>
-                              <Image src={prod.image} alt={prod.name} width={60} height={40} className="admin-preview"
-                                onError={(e) => {(e.target as HTMLImageElement).src = '/picanha.png';}}
+                              <Image src={validateImageSrc(prod.image, '/picanha.png')} alt={prod.name} width={60} height={40} className="admin-preview"
+                                onError={(e) => { (e.target as HTMLImageElement).src = '/picanha.png'; }}
                               />
                             </td>
                             <td style={{ fontWeight: 600 }}>{prod.name}</td>
                             <td style={{ color: '#555', fontSize: '0.85rem' }}>{catName}</td>
-                            <td style={{ fontWeight: 700, color: '#7E1C1C' }}>R$ {Number(prod.price).toFixed(2).replace('.', ',')}</td>
+                            <td style={{ fontWeight: 700, color: '#7E1C1C' }}>€ {Number(prod.price).toFixed(2).replace('.', ',')}</td>
                             <td>
                               <span style={{
                                 display: 'inline-block', padding: '3px 10px', borderRadius: 12,
@@ -588,14 +680,14 @@ export default function AdminPage() {
                     </button>
                   </form>
                 </div>
-                
+
                 <div className="admin-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2>📊 Simulador de Ocupação</h2>
                     <input type="date" value={simDate} onChange={e => setSimDate(e.target.value)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ccc' }} />
                   </div>
                   <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>Visão em Tempo Real do consumo e devolução de mesas pelo sistema com base na duração.</p>
-                  
+
                   {settings ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 10 }}>
                       {simSlots.map((slot, i) => {
@@ -604,7 +696,7 @@ export default function AdminPage() {
                         if (ratio < 0.3) color = '#7E1C1C'; // Quase cheio (vermelho)
                         else if (ratio < 0.7) color = '#bd8c31'; // Metade (amarelo)
                         if (slot.free === 0) color = '#000'; // Esgotado
-                        
+
                         return (
                           <div key={i} style={{ padding: '10px 8px', borderRadius: 8, background: '#fcfcfc', border: `1px solid ${color}`, textAlign: 'center' }}>
                             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#333' }}>{slot.time}</div>
@@ -642,60 +734,60 @@ export default function AdminPage() {
                       {reservations
                         .sort((a, b) => new Date(`${b.date}T${b.time}`).getTime() - new Date(`${a.date}T${a.time}`).getTime())
                         .map(res => (
-                        <tr key={res.id}>
-                          <td>
-                            <div style={{ fontWeight: 700 }}>
-                              {new Date(res.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                            </div>
-                            <div style={{ fontSize: '0.8rem', color: '#666' }}>{res.time}</div>
-                          </td>
-                          <td>
-                            <div style={{ fontWeight: 600 }}>{res.name}</div>
-                            <div style={{ fontSize: '0.8rem', color: '#888' }}>{res.phone}</div>
-                          </td>
-                          <td>
-                            <div style={{ textAlign: 'center', width: '30px', fontWeight: 700, color: '#7E1C1C' }}>
-                              {res.guests}
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`status-badge status-${res.status}`}>
-                              {res.status === 'pending' ? 'Pendente' : res.status === 'confirmed' ? 'Confirmada' : 'Cancelada'}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              {res.status === 'pending' && (
+                          <tr key={res.id}>
+                            <td>
+                              <div style={{ fontWeight: 700 }}>
+                                {new Date(res.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: '#666' }}>{res.time}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{res.name}</div>
+                              <div style={{ fontSize: '0.8rem', color: '#888' }}>{res.phone}</div>
+                            </td>
+                            <td>
+                              <div style={{ textAlign: 'center', width: '30px', fontWeight: 700, color: '#7E1C1C' }}>
+                                {res.guests}
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`status-badge status-${res.status}`}>
+                                {res.status === 'pending' ? 'Pendente' : res.status === 'confirmed' ? 'Confirmada' : 'Cancelada'}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                {res.status === 'pending' && (
+                                  <button
+                                    className="btn-edit"
+                                    style={{ background: '#2D5A27' }}
+                                    onClick={() => handleUpdateReservationStatus(res.id, 'confirmed')}
+                                  >
+                                    Confirmar
+                                  </button>
+                                )}
+                                {res.status !== 'cancelled' && (
+                                  <button
+                                    className="btn-delete"
+                                    onClick={() => handleUpdateReservationStatus(res.id, 'cancelled')}
+                                  >
+                                    Cancelar
+                                  </button>
+                                )}
                                 <button
-                                  className="btn-edit"
-                                  style={{ background: '#2D5A27' }}
-                                  onClick={() => handleUpdateReservationStatus(res.id, 'confirmed')}
+                                  className="btn-reset"
+                                  style={{ color: '#888', border: '1px solid #ccc', padding: '4px 8px' }}
+                                  onClick={() => handleDeleteReservation(res.id)}
+                                  title="Excluir Registro"
                                 >
-                                  Confirmar
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  </svg>
                                 </button>
-                              )}
-                              {res.status !== 'cancelled' && (
-                                <button
-                                  className="btn-delete"
-                                  onClick={() => handleUpdateReservationStatus(res.id, 'cancelled')}
-                                >
-                                  Cancelar
-                                </button>
-                              )}
-                              <button
-                                className="btn-reset"
-                                style={{ color: '#888', border: '1px solid #ccc', padding: '4px 8px' }}
-                                onClick={() => handleDeleteReservation(res.id)}
-                                title="Excluir Registro"
-                              >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 )}
@@ -706,6 +798,15 @@ export default function AdminPage() {
       </main>
 
       {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+      
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        type={confirmState.type}
+      />
     </div>
   );
 }
