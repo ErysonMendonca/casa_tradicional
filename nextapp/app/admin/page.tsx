@@ -54,6 +54,36 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+const SettingsImageField = ({ id, label, value, onChange, dimensions, uploading, onFileChange }: any) => {
+  return (
+    <div className="form-group">
+      <label>{label} <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 400 }}>({dimensions})</span></label>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ flex: 1 }}>
+           <input 
+             type="file" 
+             accept="image/*" 
+             onChange={(e) => onFileChange(e.target.files?.[0] || null, onChange, id)} 
+             style={{ fontSize: '0.8rem', padding: '8px', border: '1px solid #ddd', borderRadius: 4, width: '100%' }} 
+           />
+           {uploading && <p style={{ fontSize: '0.7rem', color: '#bd8c31', marginTop: 4 }}>Enviando imagem...</p>}
+        </div>
+        {value && (
+          <div style={{ width: 60, height: 40, position: 'relative', borderRadius: 4, overflow: 'hidden', border: '1px solid #ddd' }}>
+            <Image 
+              src={validateImageSrc(value, '/hero_bg.png')} 
+              alt={label} 
+              fill 
+              style={{ objectFit: 'cover' }} 
+              unoptimized
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function AdminPage() {
   const router = useRouter();
   const [userEmail, setUserEmail] = useState('Admin'); // Placeholder para o e-mail, pode ser buscado do DB futuramente
@@ -79,6 +109,27 @@ export default function AdminPage() {
   const [contactAddress, setContactAddress] = useState('');
   const [footerAboutText, setFooterAboutText] = useState('');
   const [footerRights, setFooterRights] = useState('');
+
+  // Homepage Personalization
+  const [heroTitle, setHeroTitle] = useState('TRADIÇÃO QUE ALIMENTA A ALMA.');
+  const [heroImage, setHeroImage] = useState('/hero_bg.png');
+  const [highlight1Title, setHighlight1Title] = useState('MOQUECA NA PANELA DE BARRO');
+  const [highlight1Image, setHighlight1Image] = useState('/moqueca.png');
+  const [highlight1Desc, setHighlight1Desc] = useState('');
+  const [highlight2Title, setHighlight2Title] = useState('FEIJOADA COMPLETA');
+  const [highlight2Image, setHighlight2Image] = useState('/feijoada.png');
+  const [highlight2Desc, setHighlight2Desc] = useState('');
+  const [highlight3Title, setHighlight3Title] = useState('PICANHA NA CHAPA');
+  const [highlight3Image, setHighlight3Image] = useState('/picanha.png');
+  const [highlight3Desc, setHighlight3Desc] = useState('');
+  const [aboutImage, setAboutImage] = useState('/historia_bg.png');
+  const [bookingTitle, setBookingTitle] = useState('VIVA A EXPERIÊNCIA');
+  const [bookingDesc, setBookingDesc] = useState('');
+  const [locationDesc, setLocationDesc] = useState('');
+  const [locationMapIframe, setLocationMapIframe] = useState('');
+  const [colorPrimary, setColorPrimary] = useState('#7E1C1C');
+  const [colorSecondary, setColorSecondary] = useState('#371D10');
+  const [colorTertiary, setColorTertiary] = useState('#F4EFE6');
 
   // Simulator State
   const [simDate, setSimDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -113,6 +164,21 @@ export default function AdminPage() {
   const [prodDesc, setProdDesc] = useState('');
   const [prodIngredients, setProdIngredients] = useState('');
   const [saving, setSaving] = useState(false);
+  const [settingsUploading, setSettingsUploading] = useState<{ [key: string]: boolean }>({});
+
+  const handleSettingsFileChange = async (file: File | null, setter: (url: string) => void, id: string) => {
+    if (!file) return;
+    setSettingsUploading(prev => ({ ...prev, [id]: true }));
+    try {
+      const url = await uploadFile(file, 'settings');
+      setter(url);
+      showToast('Imagem enviada com sucesso!');
+    } catch (err) {
+      showToast('Erro ao enviar imagem.', 'error');
+    } finally {
+      setSettingsUploading(prev => ({ ...prev, [id]: false }));
+    }
+  };
 
   const showToast = useCallback((message: string, type: ToastState['type'] = 'success') => {
     setToast({ message, type });
@@ -146,6 +212,26 @@ export default function AdminPage() {
         setContactAddress(sets.contact_address || '');
         setFooterAboutText(sets.footer_about_text || '');
         setFooterRights(sets.footer_rights || '');
+
+        setHeroTitle(sets.hero_title || 'TRADIÇÃO QUE ALIMENTA A ALMA.');
+        setHeroImage(sets.hero_image || '/hero_bg.png');
+        setHighlight1Title(sets.highlight1_title || 'MOQUECA NA PANELA DE BARRO');
+        setHighlight1Image(sets.highlight1_image || '/moqueca.png');
+        setHighlight1Desc(sets.highlight1_desc || '');
+        setHighlight2Title(sets.highlight2_title || 'FEIJOADA COMPLETA');
+        setHighlight2Image(sets.highlight2_image || '/feijoada.png');
+        setHighlight2Desc(sets.highlight2_desc || '');
+        setHighlight3Title(sets.highlight3_title || 'PICANHA NA CHAPA');
+        setHighlight3Image(sets.highlight3_image || '/picanha.png');
+        setHighlight3Desc(sets.highlight3_desc || '');
+        setAboutImage(sets.about_image || '/historia_bg.png');
+        setBookingTitle(sets.booking_title || 'VIVA A EXPERIÊNCIA');
+        setBookingDesc(sets.booking_desc || '');
+        setLocationDesc(sets.location_desc || '');
+        setLocationMapIframe(sets.location_map_iframe || '');
+        setColorPrimary(sets.color_primary || '#7E1C1C');
+        setColorSecondary(sets.color_secondary || '#371D10');
+        setColorTertiary(sets.color_tertiary || '#F4EFE6');
       }
       if (!prodCategoryId && cats.length > 0) setProdCategoryId(cats[0].id);
     } catch {
@@ -325,7 +411,26 @@ export default function AdminPage() {
           contact_email: contactEmail,
           contact_address: contactAddress,
           footer_about_text: footerAboutText,
-          footer_rights: footerRights
+          footer_rights: footerRights,
+          hero_title: heroTitle,
+          hero_image: heroImage,
+          highlight1_title: highlight1Title,
+          highlight1_image: highlight1Image,
+          highlight1_desc: highlight1Desc,
+          highlight2_title: highlight2Title,
+          highlight2_image: highlight2Image,
+          highlight2_desc: highlight2Desc,
+          highlight3_title: highlight3Title,
+          highlight3_image: highlight3Image,
+          highlight3_desc: highlight3Desc,
+          about_image: aboutImage,
+          booking_title: bookingTitle,
+          booking_desc: bookingDesc,
+          location_desc: locationDesc,
+          location_map_iframe: locationMapIframe,
+          color_primary: colorPrimary,
+          color_secondary: colorSecondary,
+          color_tertiary: colorTertiary,
         }),
       });
 
@@ -831,8 +936,89 @@ export default function AdminPage() {
               </div>
 
               <div className="admin-card">
-                <h2>📝 Sobre Nós e Rodapé</h2>
+                <h2>🖼️ Personalização da Página Inicial</h2>
                 <form className="admin-form" onSubmit={handleSaveSettings}>
+                  <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 10, marginBottom: 20, color: '#7E1C1C' }}>Seção Hero (Topo)</h3>
+                  <div className="form-group">
+                    <label>Título Principal (Hero)</label>
+                    <textarea value={heroTitle} onChange={e => setHeroTitle(e.target.value)} rows={2} />
+                  </div>
+                  <SettingsImageField 
+                    id="hero"
+                    label="Imagem de Fundo Hero" 
+                    value={heroImage} 
+                    onChange={setHeroImage} 
+                    dimensions="1920x1080px" 
+                    onFileChange={handleSettingsFileChange}
+                    uploading={settingsUploading['hero']}
+                  />
+
+                  <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 10, marginBottom: 20, marginTop: 40, color: '#7E1C1C' }}>Cores do Sistema</h3>
+                  <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+                    <div className="form-group">
+                      <label>Cor Primária (Destaque/Botões)</label>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <input type="color" value={colorPrimary} onChange={e => setColorPrimary(e.target.value)} style={{ width: 40, height: 40, padding: 0, border: 'none' }} />
+                        <input type="text" value={colorPrimary} onChange={e => setColorPrimary(e.target.value)} style={{ flex: 1 }} />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Cor Secundária (Textos/Escuro)</label>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <input type="color" value={colorSecondary} onChange={e => setColorSecondary(e.target.value)} style={{ width: 40, height: 40, padding: 0, border: 'none' }} />
+                        <input type="text" value={colorSecondary} onChange={e => setColorSecondary(e.target.value)} style={{ flex: 1 }} />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Cor Terciária (Fundo/Claro)</label>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <input type="color" value={colorTertiary} onChange={e => setColorTertiary(e.target.value)} style={{ width: 40, height: 40, padding: 0, border: 'none' }} />
+                        <input type="text" value={colorTertiary} onChange={e => setColorTertiary(e.target.value)} style={{ flex: 1 }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 10, marginBottom: 20, marginTop: 40, color: '#7E1C1C' }}>Destaques (3 Cards)</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+                    <div style={{ padding: 15, background: '#f9f9f9', borderRadius: 8 }}>
+                      <h4 style={{ marginBottom: 10 }}>Destaque 1</h4>
+                      <div className="form-group">
+                        <label>Título</label>
+                        <input type="text" value={highlight1Title} onChange={e => setHighlight1Title(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Descrição</label>
+                        <textarea value={highlight1Desc} onChange={e => setHighlight1Desc(e.target.value)} rows={3} />
+                      </div>
+                      <SettingsImageField id="h1" label="Imagem" value={highlight1Image} onChange={setHighlight1Image} dimensions="800x500px" onFileChange={handleSettingsFileChange} uploading={settingsUploading['h1']} />
+                    </div>
+                    <div style={{ padding: 15, background: '#f9f9f9', borderRadius: 8 }}>
+                      <h4 style={{ marginBottom: 10 }}>Destaque 2</h4>
+                      <div className="form-group">
+                        <label>Título</label>
+                        <input type="text" value={highlight2Title} onChange={e => setHighlight2Title(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Descrição</label>
+                        <textarea value={highlight2Desc} onChange={e => setHighlight2Desc(e.target.value)} rows={3} />
+                      </div>
+                      <SettingsImageField id="h2" label="Imagem" value={highlight2Image} onChange={setHighlight2Image} dimensions="800x500px" onFileChange={handleSettingsFileChange} uploading={settingsUploading['h2']} />
+                    </div>
+                    <div style={{ padding: 15, background: '#f9f9f9', borderRadius: 8 }}>
+                      <h4 style={{ marginBottom: 10 }}>Destaque 3</h4>
+                      <div className="form-group">
+                        <label>Título</label>
+                        <input type="text" value={highlight3Title} onChange={e => setHighlight3Title(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Descrição</label>
+                        <textarea value={highlight3Desc} onChange={e => setHighlight3Desc(e.target.value)} rows={3} />
+                      </div>
+                      <SettingsImageField id="h3" label="Imagem" value={highlight3Image} onChange={setHighlight3Image} dimensions="800x500px" onFileChange={handleSettingsFileChange} uploading={settingsUploading['h3']} />
+                    </div>
+                  </div>
+
+                  <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 10, marginBottom: 20, marginTop: 40, color: '#7E1C1C' }}>Seção Sobre Nós (História)</h3>
                   <div className="form-group">
                     <label>Título "Sobre Nós"</label>
                     <input type="text" value={aboutTitle} onChange={e => setAboutTitle(e.target.value)} placeholder="Ex: NOSSA HISTÓRIA" />
@@ -841,6 +1027,47 @@ export default function AdminPage() {
                     <label>Texto "Sobre Nós" (Main Page)</label>
                     <textarea value={aboutText} onChange={e => setAboutText(e.target.value)} rows={6} placeholder="Conte a história do restaurante..." />
                   </div>
+                  <SettingsImageField 
+                    id="about"
+                    label="Imagem da Seção Sobre Nós" 
+                    value={aboutImage} 
+                    onChange={setAboutImage} 
+                    dimensions="1000x800px" 
+                    onFileChange={handleSettingsFileChange}
+                    uploading={settingsUploading['about']}
+                  />
+
+                  <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 10, marginBottom: 20, marginTop: 40, color: '#7E1C1C' }}>Reservas</h3>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Título Seção Reserva</label>
+                      <input type="text" value={bookingTitle} onChange={e => setBookingTitle(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label>Descrição Reserva</label>
+                      <textarea value={bookingDesc} onChange={e => setBookingDesc(e.target.value)} rows={2} />
+                    </div>
+                  </div>
+
+                  <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: 10, marginBottom: 20, marginTop: 40, color: '#7E1C1C' }}>Localização</h3>
+                  <div className="form-group">
+                    <label>Texto Localização</label>
+                    <textarea value={locationDesc} onChange={e => setLocationDesc(e.target.value)} rows={2} />
+                  </div>
+                  <div className="form-group">
+                    <label>URL Iframe Google Maps (Embed)</label>
+                    <input type="text" value={locationMapIframe} onChange={e => setLocationMapIframe(e.target.value)} placeholder="https://maps.google.com/..." />
+                  </div>
+
+                  <button type="submit" className="btn-save" disabled={saving}>
+                    {saving ? 'Aplicando...' : 'Salvar Personalização da Home'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="admin-card">
+                <h2>📝 Informações de Contato e Rodapé</h2>
+                <form className="admin-form" onSubmit={handleSaveSettings}>
                   <div className="form-row">
                     <div className="form-group">
                       <label>Telefone 1</label>

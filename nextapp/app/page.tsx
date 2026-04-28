@@ -38,10 +38,10 @@ export default async function HomePage() {
 
       <main>
         {/* ===== HERO ===== */}
-        <section className="hero" style={{ backgroundImage: "url('/hero_bg.png')" }}>
+        <section className="hero" style={{ backgroundImage: `url('${settings?.hero_image || '/hero_bg.png'}')` }}>
           <div className="hero-content">
-            <h1>
-              TRADIÇÃO QUE<br />ALIMENTA A ALMA.
+            <h1 style={{ whiteSpace: 'pre-line' }}>
+              {settings?.hero_title || 'TRADIÇÃO QUE\nALIMENTA A ALMA.'}
             </h1>
             <div className="hero-buttons">
               <Link href="/cardapio" className="btn-secondary">VER CARDÁPIO</Link>
@@ -55,19 +55,19 @@ export default async function HomePage() {
           <h2>TRADIÇÕES EM DESTAQUE</h2>
           <div className="cards-grid">
             <div className="card">
-              <Image src="/moqueca.png" alt="Moqueca na Panela de Barro" width={400} height={250} style={{ width: '100%', height: '250px', objectFit: 'cover', marginBottom: '20px' }} />
-              <h3>MOQUECA NA PANELA DE BARRO</h3>
-              <p>Moqueca na panela de barro, com azeite de dendê, temperos frescos e leite de coco.</p>
+              <Image src={settings?.highlight1_image || '/moqueca.png'} alt={settings?.highlight1_title || "Moqueca na Panela de Barro"} width={400} height={250} style={{ width: '100%', height: '250px', objectFit: 'cover', marginBottom: '20px' }} />
+              <h3>{settings?.highlight1_title || 'MOQUECA NA PANELA DE BARRO'}</h3>
+              <p>{settings?.highlight1_desc || 'Moqueca na panela de barro, com azeite de dendê, temperos frescos e leite de coco.'}</p>
             </div>
             <div className="card">
-              <Image src="/feijoada.png" alt="Feijoada Completa" width={400} height={250} style={{ width: '100%', height: '250px', objectFit: 'cover', marginBottom: '20px' }} />
-              <h3>FEIJOADA COMPLETA</h3>
-              <p>Feijoada completa servida na cumbuca de barro, com arroz, farofa e laranja.</p>
+              <Image src={settings?.highlight2_image || '/feijoada.png'} alt={settings?.highlight2_title || "Feijoada Completa"} width={400} height={250} style={{ width: '100%', height: '250px', objectFit: 'cover', marginBottom: '20px' }} />
+              <h3>{settings?.highlight2_title || 'FEIJOADA COMPLETA'}</h3>
+              <p>{settings?.highlight2_desc || 'Feijoada completa servida na cumbuca de barro, com arroz, farofa e laranja.'}</p>
             </div>
             <div className="card">
-              <Image src="/picanha.png" alt="Picanha na Chapa" width={400} height={250} style={{ width: '100%', height: '250px', objectFit: 'cover', marginBottom: '20px' }} />
-              <h3>PICANHA NA CHAPA</h3>
-              <p>Picanha na chapa, selecionada e assada com sal grosso no ponto perfeito.</p>
+              <Image src={settings?.highlight3_image || '/picanha.png'} alt={settings?.highlight3_title || "Picanha na Chapa"} width={400} height={250} style={{ width: '100%', height: '250px', objectFit: 'cover', marginBottom: '20px' }} />
+              <h3>{settings?.highlight3_title || 'PICANHA NA CHAPA'}</h3>
+              <p>{settings?.highlight3_desc || 'Picanha na chapa, selecionada e assada com sal grosso no ponto perfeito.'}</p>
             </div>
           </div>
         </section>
@@ -88,20 +88,15 @@ export default async function HomePage() {
                 <Link href="/cardapio" className="btn-secondary">VER CARDÁPIO</Link>
               </div>
             </div>
-            <div className="historia-image" />
-          </div>
-        </section>
-
-        {/* ===== RECOMPENSAS ===== */}
-        <section className="recompensas">
-          <div className="recompensas-content">
-            <div className="recompensas-text">
-              <h2>RECOMPENSAS<br />TRADICIONAIS</h2>
-              <p>Venha conhecer nossas tradições de perto. Participe do nosso programa de recompensas.</p>
-            </div>
-            <div className="recompensas-action">
-              <h3>GANHE UM PASTELZINHO DE ENTRADA GRÁTIS</h3>
-              <Link href="#signup" className="btn-secondary">CADASTRAR / ENTRAR</Link>
+            <div className="historia-image-container">
+              <Image 
+                src={settings?.about_image || '/historia_bg.png'} 
+                alt="Nossa História" 
+                width={800} 
+                height={600} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                priority
+              />
             </div>
           </div>
         </section>
@@ -114,9 +109,9 @@ export default async function HomePage() {
               <ReservationForm />
             </div>
             <div className="res-info-side">
-              <h2>VIVA A EXPERIÊNCIA</h2>
+              <h2>{settings?.booking_title || 'VIVA A EXPERIÊNCIA'}</h2>
               <p>
-                Garanta seu lugar em nossa mesa. Recomendamos reservas com pelo menos 24h de antecedência, especialmente para grupos e finais de semana.
+                {settings?.booking_desc || 'Garanta seu lugar em nossa mesa. Recomendamos reservas com pelo menos 24h de antecedência, especialmente para grupos e finais de semana.'}
               </p>
               <div className="res-details">
                 <p><strong>Horário de Funcionamento:</strong><br />Ter - Dom: {settings?.open_time?.substring(0, 5) || '12:00'} - {settings?.close_time?.substring(0, 5) || '23:00'}</p>
@@ -131,10 +126,10 @@ export default async function HomePage() {
         <section className="localizacao" id="lojas">
           <div className="loc-text">
             <h2>LOCALIZADO EM<br />{settings?.contact_address?.split(',')[0]?.toUpperCase() || 'BRAGA'}</h2>
-            <p>Visite nossa casa e sinta o acolhimento da tradição no coração de {settings?.contact_address?.split(',')[0] || 'Braga'}. Esperamos por você.</p>
+            <p>{settings?.location_desc || `Visite nossa casa e sinta o acolhimento da tradição no coração de ${settings?.contact_address?.split(',')[0] || 'Braga'}. Esperamos por você.`}</p>
             <p><strong>{settings?.contact_address || 'Braga, Portugal'}</strong></p>
             <a
-              href="https://www.google.com/maps/dir/?api=1&destination=41.5561905,-8.4218855"
+              href={`https://www.google.com/maps/dir/?api=1&destination=${settings?.contact_address || 'Braga, Portugal'}`}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary"
@@ -144,7 +139,7 @@ export default async function HomePage() {
           </div>
           <div className="loc-map">
             <iframe
-              src="https://maps.google.com/maps?q=41.5561905,-8.4218855&hl=pt&z=15&output=embed"
+              src={settings?.location_map_iframe || "https://maps.google.com/maps?q=41.5561905,-8.4218855&hl=pt&z=15&output=embed"}
               width="100%"
               height="100%"
               style={{ border: 0, filter: 'grayscale(1) invert(0.9) contrast(1.2)', display: 'block', minHeight: '500px' }}

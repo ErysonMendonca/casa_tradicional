@@ -41,16 +41,6 @@ export default function Footer({ initialSettings }: { initialSettings?: any }) {
           <p>{settings?.contact_email || 'info@casadetradicao.com.br'}</p>
           {settings?.contact_address && <p>{settings.contact_address}</p>}
           
-          {settings?.whatsapp_number && (
-            <a 
-              href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, '')}`} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              style={{ color: '#2D5A27', fontWeight: 'bold', display: 'block', marginTop: '10px', textDecoration: 'none' }}
-            >
-              🟢 WhatsApp: {settings.whatsapp_number}
-            </a>
-          )}
         </div>
         <div className="footer-col">
           <h4>SOBRE NÓS</h4>
