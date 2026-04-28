@@ -109,6 +109,59 @@ export interface Database {
           created_at?: string;
         };
       };
+      restaurant_settings: {
+        Row: {
+          id: string;
+          total_tables: number;
+          open_time: string;
+          close_time: string;
+          reservation_duration_mins: number;
+          whatsapp_number: string;
+          about_title: string;
+          about_text: string;
+          contact_phone: string;
+          contact_phone_2: string;
+          contact_email: string;
+          contact_address: string;
+          footer_about_text: string;
+          footer_rights: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          total_tables?: number;
+          open_time?: string;
+          close_time?: string;
+          reservation_duration_mins?: number;
+          whatsapp_number?: string;
+          about_title?: string;
+          about_text?: string;
+          contact_phone?: string;
+          contact_phone_2?: string;
+          contact_email?: string;
+          contact_address?: string;
+          footer_about_text?: string;
+          footer_rights?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          total_tables?: number;
+          open_time?: string;
+          close_time?: string;
+          reservation_duration_mins?: number;
+          whatsapp_number?: string;
+          about_title?: string;
+          about_text?: string;
+          contact_phone?: string;
+          contact_phone_2?: string;
+          contact_email?: string;
+          contact_address?: string;
+          footer_about_text?: string;
+          footer_rights?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -120,3 +173,4 @@ export interface Database {
 export type Category = Database['public']['Tables']['categories']['Row'];
 export type Product = Database['public']['Tables']['products']['Row'];
 export type Reservation = Database['public']['Tables']['reservations']['Row'];
+export type RestaurantSettings = Database['public']['Tables']['restaurant_settings']['Row'];

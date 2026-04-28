@@ -10,7 +10,7 @@ import type { Category, Product } from '@/lib/supabase/types';
 import { logoutCustom } from '@/app/actions/auth';
 import { uploadFile } from '@/lib/supabase/storage';
 
-type ActiveTab = 'categories' | 'products' | 'reservations';
+type ActiveTab = 'categories' | 'products' | 'reservations' | 'settings';
 
 interface Reservation {
   id: string;
@@ -70,6 +70,16 @@ export default function AdminPage() {
   const [setDuration, setFormDuration] = useState('90');
   const [setWhatsapp, setFormWhatsapp] = useState('');
 
+  // Conteúdo e Rodapé
+  const [aboutTitle, setAboutTitle] = useState('NOSSA HISTÓRIA');
+  const [aboutText, setAboutText] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactPhone2, setContactPhone2] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactAddress, setContactAddress] = useState('');
+  const [footerAboutText, setFooterAboutText] = useState('');
+  const [footerRights, setFooterRights] = useState('');
+
   // Simulator State
   const [simDate, setSimDate] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -128,6 +138,14 @@ export default function AdminPage() {
         setFormCloseTime(sets.close_time.substring(0, 5));
         setFormDuration(String(sets.reservation_duration_mins));
         setFormWhatsapp(sets.whatsapp_number || '');
+        setAboutTitle(sets.about_title || 'NOSSA HISTÓRIA');
+        setAboutText(sets.about_text || '');
+        setContactPhone(sets.contact_phone || '');
+        setContactPhone2(sets.contact_phone_2 || '');
+        setContactEmail(sets.contact_email || '');
+        setContactAddress(sets.contact_address || '');
+        setFooterAboutText(sets.footer_about_text || '');
+        setFooterRights(sets.footer_rights || '');
       }
       if (!prodCategoryId && cats.length > 0) setProdCategoryId(cats[0].id);
     } catch {
@@ -291,21 +309,36 @@ export default function AdminPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await apiFetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           total_tables: setTotalTables,
-          open_time: setOpenTime + ':00',
-          close_time: setCloseTime + ':00',
+          open_time: setOpenTime.includes(':') ? setOpenTime : setOpenTime + ':00',
+          close_time: setCloseTime.includes(':') ? setCloseTime : setCloseTime + ':00',
           reservation_duration_mins: setDuration,
-          whatsapp_number: setWhatsapp
+          whatsapp_number: setWhatsapp,
+          about_title: aboutTitle,
+          about_text: aboutText,
+          contact_phone: contactPhone,
+          contact_phone_2: contactPhone2,
+          contact_email: contactEmail,
+          contact_address: contactAddress,
+          footer_about_text: footerAboutText,
+          footer_rights: footerRights
         }),
       });
-      showToast('Configurações salvas!');
+
+      const result = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(result.error || 'Erro desconhecido ao salvar');
+      }
+
+      showToast('Configurações salvas com sucesso!');
       loadData();
-    } catch {
-      showToast('Erro ao salvar as configurações.', 'error');
+    } catch (err: any) {
+      showToast(`Erro: ${err.message}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -460,6 +493,9 @@ export default function AdminPage() {
           </button>
           <button className={`tab-btn${activeTab === 'reservations' ? ' active' : ''}`} onClick={() => setActiveTab('reservations')}>
             Reservas {reservations.filter(r => r.status === 'pending').length > 0 && `(${reservations.filter(r => r.status === 'pending').length})`}
+          </button>
+          <button className={`tab-btn${activeTab === 'settings' ? ' active' : ''}`} onClick={() => setActiveTab('settings')}>
+            Configurações
           </button>
         </div>
 
@@ -646,73 +682,6 @@ export default function AdminPage() {
 
             {/* ===== ABA RESERVAS ===== */}
             <section className={`admin-section${activeTab === 'reservations' ? ' active' : ''}`}>
-              {/* === CONFIGURAÇÕES E SIMULADOR === */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: 24, marginBottom: 24 }}>
-                <div className="admin-card">
-                  <h2>⚙️ Configurações</h2>
-                  <form className="admin-form" onSubmit={handleSaveSettings}>
-                    <div className="form-group">
-                      <label>Total de Mesas Físicas</label>
-                      <input type="number" min="1" value={setTotalTables} onChange={e => setFormTotalTables(e.target.value)} required />
-                    </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Abre às</label>
-                        <input type="time" value={setOpenTime} onChange={e => setFormOpenTime(e.target.value)} required />
-                      </div>
-                      <div className="form-group">
-                        <label>Fecha às</label>
-                        <input type="time" value={setCloseTime} onChange={e => setFormCloseTime(e.target.value)} required />
-                      </div>
-                    </div>
-                    <div className="form-group">
-                      <label>Duração da Reserva (Minutos)</label>
-                      <input type="number" step="15" min="15" value={setDuration} onChange={e => setFormDuration(e.target.value)} required placeholder="Ex: 90" />
-                      <span style={{ fontSize: '0.75rem', color: '#666', marginTop: 4, display: 'block' }}>Ex: 90 minutos (1h30). Cada reserva bloqueia 1 mesa durante este tempo exato.</span>
-                    </div>
-                    <div className="form-group">
-                      <label>WhatsApp para Notificação (URL)</label>
-                      <input type="text" value={setWhatsapp} onChange={e => setFormWhatsapp(e.target.value)} placeholder="Ex: 5511999999999" />
-                      <span style={{ fontSize: '0.75rem', color: '#666', marginTop: 4, display: 'block' }}>Apenas números. O cliente será redirecionado para enviar mensagem a este WhatsApp no site.</span>
-                    </div>
-                    <button type="submit" className="btn-save" disabled={saving}>
-                      {saving ? 'Aplicando...' : 'Salvar Regras'}
-                    </button>
-                  </form>
-                </div>
-
-                <div className="admin-card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2>📊 Simulador de Ocupação</h2>
-                    <input type="date" value={simDate} onChange={e => setSimDate(e.target.value)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ccc' }} />
-                  </div>
-                  <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>Visão em Tempo Real do consumo e devolução de mesas pelo sistema com base na duração.</p>
-
-                  {settings ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 10 }}>
-                      {simSlots.map((slot, i) => {
-                        const ratio = slot.free / slot.total;
-                        let color = '#2D5A27'; // Livre (verde)
-                        if (ratio < 0.3) color = '#7E1C1C'; // Quase cheio (vermelho)
-                        else if (ratio < 0.7) color = '#bd8c31'; // Metade (amarelo)
-                        if (slot.free === 0) color = '#000'; // Esgotado
-
-                        return (
-                          <div key={i} style={{ padding: '10px 8px', borderRadius: 8, background: '#fcfcfc', border: `1px solid ${color}`, textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#333' }}>{slot.time}</div>
-                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: color, margin: '4px 0' }}>{slot.free}</div>
-                            <div style={{ fontSize: '0.65rem', color: '#888', textTransform: 'uppercase' }}>Vagas</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p style={{ color: '#888' }}>Configuração não carregada.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* LISTA DE RESERVAS */}
               <div className="admin-card">
                 <h2>Gerenciamento de Reservas ({reservations.length})</h2>
                 {reservations.length === 0 ? (
@@ -791,6 +760,119 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 )}
+              </div>
+            </section>
+
+            {/* ===== ABA CONFIGURAÇÕES ===== */}
+            <section className={`admin-section${activeTab === 'settings' ? ' active' : ''}`}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: 24, marginBottom: 24 }}>
+                <div className="admin-card">
+                  <h2>⚙️ Configurações Gerais</h2>
+                  <form className="admin-form" onSubmit={handleSaveSettings}>
+                    <div className="form-group">
+                      <label>Total de Mesas Físicas</label>
+                      <input type="number" min="1" value={setTotalTables} onChange={e => setFormTotalTables(e.target.value)} required />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Abre às</label>
+                        <input type="time" value={setOpenTime} onChange={e => setFormOpenTime(e.target.value)} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Fecha às</label>
+                        <input type="time" value={setCloseTime} onChange={e => setFormCloseTime(e.target.value)} required />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Duração da Reserva (Minutos)</label>
+                      <input type="number" step="15" min="15" value={setDuration} onChange={e => setFormDuration(e.target.value)} required placeholder="Ex: 90" />
+                      <span style={{ fontSize: '0.75rem', color: '#666', marginTop: 4, display: 'block' }}>Ex: 90 minutos (1h30). Cada reserva bloqueia 1 mesa durante este tempo exato.</span>
+                    </div>
+                    <div className="form-group">
+                      <label>WhatsApp para Notificação (URL)</label>
+                      <input type="text" value={setWhatsapp} onChange={e => setFormWhatsapp(e.target.value)} placeholder="Ex: 5511999999999" />
+                      <span style={{ fontSize: '0.75rem', color: '#666', marginTop: 4, display: 'block' }}>Apenas números. O cliente será redirecionado para enviar mensagem a este WhatsApp no site.</span>
+                    </div>
+                    <button type="submit" className="btn-save" disabled={saving}>
+                      {saving ? 'Aplicando...' : 'Salvar Regras'}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="admin-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2>📊 Simulador de Ocupação</h2>
+                    <input type="date" value={simDate} onChange={e => setSimDate(e.target.value)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ccc' }} />
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>Visão em Tempo Real do consumo e devolução de mesas pelo sistema com base na duração.</p>
+
+                  {settings ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 10 }}>
+                      {simSlots.map((slot, i) => {
+                        const ratio = slot.free / slot.total;
+                        let color = '#2D5A27'; // Livre (verde)
+                        if (ratio < 0.3) color = '#7E1C1C'; // Quase cheio (vermelho)
+                        else if (ratio < 0.7) color = '#bd8c31'; // Metade (amarelo)
+                        if (slot.free === 0) color = '#000'; // Esgotado
+
+                        return (
+                          <div key={i} style={{ padding: '10px 8px', borderRadius: 8, background: '#fcfcfc', border: `1px solid ${color}`, textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#333' }}>{slot.time}</div>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: color, margin: '4px 0' }}>{slot.free}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#888', textTransform: 'uppercase' }}>Vagas</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p style={{ color: '#888' }}>Configuração não carregada.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="admin-card">
+                <h2>📝 Sobre Nós e Rodapé</h2>
+                <form className="admin-form" onSubmit={handleSaveSettings}>
+                  <div className="form-group">
+                    <label>Título "Sobre Nós"</label>
+                    <input type="text" value={aboutTitle} onChange={e => setAboutTitle(e.target.value)} placeholder="Ex: NOSSA HISTÓRIA" />
+                  </div>
+                  <div className="form-group">
+                    <label>Texto "Sobre Nós" (Main Page)</label>
+                    <textarea value={aboutText} onChange={e => setAboutText(e.target.value)} rows={6} placeholder="Conte a história do restaurante..." />
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Telefone 1</label>
+                      <input type="text" value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="(21) 1234-5678" />
+                    </div>
+                    <div className="form-group">
+                      <label>Telefone 2</label>
+                      <input type="text" value={contactPhone2} onChange={e => setContactPhone2(e.target.value)} placeholder="(21) 98765-4321" />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>E-mail de Contato</label>
+                      <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="info@exemplo.com" />
+                    </div>
+                    <div className="form-group">
+                      <label>Morada / Endereço</label>
+                      <input type="text" value={contactAddress} onChange={e => setContactAddress(e.target.value)} placeholder="Braga, Portugal" />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Texto Curto "Sobre Nós" (Rodapé)</label>
+                    <textarea value={footerAboutText} onChange={e => setFooterAboutText(e.target.value)} rows={3} placeholder="Breve descrição para o rodapé..." />
+                  </div>
+                  <div className="form-group">
+                    <label>Texto de Direitos Reservados (Rodapé)</label>
+                    <input type="text" value={footerRights} onChange={e => setFooterRights(e.target.value)} placeholder="CASA DE TRADIÇÃO. TODOS OS DIREITOS RESERVADOS." />
+                  </div>
+                  <button type="submit" className="btn-save" disabled={saving}>
+                    {saving ? 'Aplicando...' : 'Salvar Conteúdo'}
+                  </button>
+                </form>
               </div>
             </section>
           </>

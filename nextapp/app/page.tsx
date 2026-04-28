@@ -4,6 +4,10 @@ import Image from 'next/image';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ReservationForm from '@/components/ReservationForm';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+ 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: 'Casa de Tradição — Gastronomia Brasileira em Braga',
@@ -11,7 +15,23 @@ export const metadata: Metadata = {
     'Venha viver a experiência da culinária brasileira tradicional. Moqueca, Feijoada, Picanha e muito mais. Restaurante em Braga, Portugal.',
 };
 
-export default function HomePage() {
+async function getSettings() {
+  try {
+    const { data } = await supabaseAdmin
+      .from('restaurant_settings')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    
+    return data && data.length > 0 ? data[0] : null;
+  } catch (e) {
+    console.error('Erro ao buscar settings no servidor:', e);
+    return null;
+  }
+}
+
+export default async function HomePage() {
+  const settings = await getSettings();
+
   return (
     <>
       <Header activePage="home" />
@@ -56,18 +76,14 @@ export default function HomePage() {
         <section className="historia" id="sobre">
           <div className="historia-container">
             <div className="historia-text">
-              <h2>NOSSA HISTÓRIA</h2>
-              <p>
-                Desde as gerações passadas, a Casa de Tradição mantém o compromisso de trazer o
-                sabor autêntico da culinária brasileira para a sua mesa. Nascemos da paixão pelas
-                panelas de barro e pelo fogo de chão, preservando segredos culinários que
-                atravessam décadas.
-              </p>
-              <p>
-                Cada prato é uma celebração da nossa cultura, preparado com ingredientes
-                selecionados de pequenos produtores e o carinho que só uma cozinha verdadeiramente
-                tradicional pode oferecer. Venha viver essa experiência conosco.
-              </p>
+              <h2>{settings?.about_title || 'NOSSA HISTÓRIA'}</h2>
+              <div style={{ whiteSpace: 'pre-line' }}>
+                <p>
+                  {settings?.about_text || 
+                    `Desde as gerações passadas, a Casa de Tradição mantém o compromisso de trazer o sabor autêntico da culinária brasileira para a sua mesa. Nascemos da paixão pelas panelas de barro e pelo fogo de chão, preservando segredos culinários que atravessam décadas.\n\nCada prato é uma celebração da nossa cultura, preparado com ingredientes selecionados de pequenos produtores e o carinho que só uma cozinha verdadeiramente tradicional pode oferecer. Venha viver essa experiência conosco.`
+                  }
+                </p>
+              </div>
               <div className="historia-actions">
                 <Link href="/cardapio" className="btn-secondary">VER CARDÁPIO</Link>
               </div>
@@ -103,9 +119,9 @@ export default function HomePage() {
                 Garanta seu lugar em nossa mesa. Recomendamos reservas com pelo menos 24h de antecedência, especialmente para grupos e finais de semana.
               </p>
               <div className="res-details">
-                <p><strong>Horário de Funcionamento:</strong><br />Ter - Dom: 12:00 - 23:00</p>
-                <p><strong>Telefone:</strong><br />+351 000 000 000</p>
-                <p><strong>Morada:</strong><br />Braga, Portugal</p>
+                <p><strong>Horário de Funcionamento:</strong><br />Ter - Dom: {settings?.open_time?.substring(0, 5) || '12:00'} - {settings?.close_time?.substring(0, 5) || '23:00'}</p>
+                <p><strong>Telefone:</strong><br />{settings?.contact_phone || '+351 000 000 000'}</p>
+                <p><strong>Morada:</strong><br />{settings?.contact_address || 'Braga, Portugal'}</p>
               </div>
             </div>
           </div>
@@ -114,9 +130,9 @@ export default function HomePage() {
         {/* ===== LOCALIZAÇÃO ===== */}
         <section className="localizacao" id="lojas">
           <div className="loc-text">
-            <h2>LOCALIZADO EM<br />BRAGA</h2>
-            <p>Visite nossa casa e sinta o acolhimento da tradição no coração de Braga. Esperamos por você.</p>
-            <p><strong>Braga, Portugal</strong></p>
+            <h2>LOCALIZADO EM<br />{settings?.contact_address?.split(',')[0]?.toUpperCase() || 'BRAGA'}</h2>
+            <p>Visite nossa casa e sinta o acolhimento da tradição no coração de {settings?.contact_address?.split(',')[0] || 'Braga'}. Esperamos por você.</p>
+            <p><strong>{settings?.contact_address || 'Braga, Portugal'}</strong></p>
             <a
               href="https://www.google.com/maps/dir/?api=1&destination=41.5561905,-8.4218855"
               target="_blank"
@@ -140,7 +156,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      <Footer />
+      <Footer initialSettings={settings} />
     </>
   );
 }
